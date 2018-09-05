@@ -29,7 +29,10 @@ ls -la payload
 sudo artillery report result.json -o result.html
 
 
-7z a -mx9 result.7z -mhe -p$zippassword result.json result.html
+sudo find /var/lib/waagent -name stdout -exec cp '{}' . \;
+sudo find /var/lib/waagent -name errout -exec cp '{}' . \;
+
+7z a -mx9 result.7z -mhe -p$zippassword result.json result.html stdout errout
 
 resulturl=$bloburl/result.7z
 sudo azcopy --source result.7z --destination $resulturl --dest-key $storagekey

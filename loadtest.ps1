@@ -434,6 +434,18 @@ function Download-Result([string] $resourceGroupName, [string] $storageAccountNa
         Log ("Deleting htmlfile: '" + $htmlfile + "'")
         del $htmlfile
     }
+    [string] $stdfile = "stdout"
+    if (Test-Path $stdfile)
+    {
+        Log ("Deleting stdfile: '" + $stdfile + "'")
+        del $stdfile
+    }
+    [string] $errfile = "errout"
+    if (Test-Path $errfile)
+    {
+        Log ("Deleting errfile: '" + $errfile + "'")
+        del $errfile
+    }
 
     Log ("Downloading '" + $url + "' to '" + $zipfile + "'")
     Get-AzureStorageBlobContent -Container $containerName -Blob $blobName -Context $storageContext | Out-Null
