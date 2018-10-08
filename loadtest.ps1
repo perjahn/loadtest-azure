@@ -83,12 +83,34 @@ function Main($mainargs)
     Update-ParametersFile $parametersFile $resourceGroupName $location $username $password $ipaddress $zipPassword $sasurls
 
     Log ("Deploying: '" + $resourceGroupName + "' '" + $templateFile + "' '" + $parametersFile + "'")
-    New-AzureRmResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile
 
-    Download-Result $resourceGroupName $storageAccountName $sasurls["blobUrl"] $sasurls["containerName"] "result.7z" $zipPassword
+    try
+    {
+        New-AzureRmResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile
+    }
+    catch
+    {
+        Log ("Couldn't create resource group.")
+    }
+
+    try
+    {
+        Download-Result $resourceGroupName $storageAccountName $sasurls["blobUrl"] $sasurls["containerName"] "result.7z" $zipPassword
+    }
+    catch
+    {
+        Log ("Couldn't download result.")
+    }
 
     Log ("Deleting resource group: '" + $resourceGroupName + "'")
-    Remove-AzureRmResourceGroup $resourceGroupName -Force
+    try
+    {
+        Remove-AzureRmResourceGroup $resourceGroupName -Force
+    }
+    catch
+    {
+        Log ("Couldn't delete resource group.")
+    }
 
     Log ("Done: " + $watch.Elapsed)
 }
