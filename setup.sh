@@ -19,7 +19,8 @@ mkdir payload
 
 sudo apt-get install npm nodejs -y
 sudo npm install npm --global
-sudo npm install -g artillery
+sudo npm install -g api-spec-converter --unsafe-perm=true --allow-root
+sudo npm install -g artillery --unsafe-perm=true --allow-root
 sudo artillery -V
 sudo artillery run payload/artillery.yml -o result.json
 
