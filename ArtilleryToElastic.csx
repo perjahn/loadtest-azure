@@ -92,7 +92,7 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
                 {
                     long starttime = latency[0].Value<long>() + diffms;
                     string rebasetime = (((double)starttime) / 1000).ToString(CultureInfo.InvariantCulture);
-                    jobject["rebasetime"] = rebasetime;
+                    jobject["rebasetimesstamp"] = rebasetime;
                 }
 
                 allrequests.Add(jobject);
@@ -228,15 +228,15 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
 
             foreach (JObject jsonrow in jsonrows)
             {
+                double seconds = double.Parse(jsonrow[timestampfield].Value<string>(), CultureInfo.InvariantCulture);
+                DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
+
                 foreach (string reformattimestampfield in reformattimestampfields)
                 {
                     double reformatseconds = double.Parse(jsonrow[reformattimestampfield].Value<string>(), CultureInfo.InvariantCulture);
                     DateTime reformattimestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reformatseconds);
                     jsonrow[reformattimestampfield] = reformattimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fff");
                 }
-
-                double seconds = double.Parse(jsonrow[timestampfield].Value<string>(), CultureInfo.InvariantCulture);
-                DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
 
                 string dateindexname = $"{indexname}-{timestamp:yyyy.MM}";
 
