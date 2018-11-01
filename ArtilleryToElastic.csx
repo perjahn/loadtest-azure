@@ -80,7 +80,7 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
 
             diffms = GetDiff((long)earliestStartTime.TimeOfDay.TotalMilliseconds, rebasestartime * 1000);
 
-            Log($"earliestStartTime: {earliestStartTime.ToString()}, diffms: {diffms}");
+            Log($"earliestStartTime: {earliestStartTime.ToString("YYYY-MM-dd HH:mm:ss.fff")}, diffms: {diffms}");
         }
 
         foreach (var intermediate in intermediates)
