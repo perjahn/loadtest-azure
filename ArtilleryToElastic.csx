@@ -222,68 +222,68 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
     static void PutIntoIndex(string serverurl, string username, string password, string indexname,
         string typename, string timestampfield, string idfield, JObject[] jsonrows, string[] reformattimestampfields)
     {
-        using (WebClient client = new WebClient())
+        StringBuilder sb = new StringBuilder();
+
+        foreach (JObject jsonrow in jsonrows)
         {
-            StringBuilder sb = new StringBuilder();
+            double seconds = double.Parse(jsonrow[timestampfield].Value<string>(), CultureInfo.InvariantCulture);
+            DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
 
-            foreach (JObject jsonrow in jsonrows)
+            foreach (string reformattimestampfield in reformattimestampfields)
             {
-                double seconds = double.Parse(jsonrow[timestampfield].Value<string>(), CultureInfo.InvariantCulture);
-                DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
-
-                foreach (string reformattimestampfield in reformattimestampfields)
-                {
-                    double reformatseconds = double.Parse(jsonrow[reformattimestampfield].Value<string>(), CultureInfo.InvariantCulture);
-                    DateTime reformattimestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reformatseconds);
-                    jsonrow[reformattimestampfield] = reformattimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fff");
-                }
-
-                string dateindexname = $"{indexname}-{timestamp:yyyy.MM}";
-
-                string id = $"{jsonrow[idfield].Value<string>()}";
-                jsonrow.Remove("_id");
-
-                string metadata = "{ \"index\": { \"_index\": \"" + dateindexname + "\", \"_type\": \"" + typename + "\", \"_id\": \"" + id + "\" } }";
-                sb.AppendLine(metadata);
-
-                string rowdata = jsonrow.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
-                sb.AppendLine(rowdata);
+                double reformatseconds = double.Parse(jsonrow[reformattimestampfield].Value<string>(), CultureInfo.InvariantCulture);
+                DateTime reformattimestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reformatseconds);
+                jsonrow[reformattimestampfield] = reformattimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fff");
             }
 
-            string address = $"{serverurl}/_bulk";
-            string bulkdata = sb.ToString();
+            string dateindexname = $"{indexname}-{timestamp:yyyy.MM}";
 
-            Log("Beginning of the data...");
-            Log($">>>{bulkdata.Substring(0, 300)}<<<");
+            string id = $"{jsonrow[idfield].Value<string>()}";
+            jsonrow.Remove("_id");
 
-            Log($"Importing documents...");
-            ImportRows(client, address, username, password, bulkdata);
+            string metadata = "{ \"index\": { \"_index\": \"" + dateindexname + "\", \"_type\": \"" + typename + "\", \"_id\": \"" + id + "\" } }";
+            sb.AppendLine(metadata);
 
-            Log("Done!");
+            string rowdata = jsonrow.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+            sb.AppendLine(rowdata);
         }
+
+        string address = $"{serverurl}/_bulk";
+        string bulkdata = sb.ToString();
+
+        Log("Beginning of the data...");
+        Log($">>>{bulkdata.Substring(0, 300)}<<<");
+
+        Log($"Importing documents...");
+        ImportRows(address, username, password, bulkdata);
+
+        Log("Done!");
     }
 
-    static void ImportRows(WebClient client, string address, string username, string password, string bulkdata)
+    static void ImportRows(string address, string username, string password, string bulkdata)
     {
-        if (username != null && password != null)
+        using (WebClient client = new WebClient())
         {
-            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}"));
-            client.Headers[HttpRequestHeader.Authorization] = $"Basic {credentials}";
-        }
-        client.Headers["Content-Type"] = "application/x-ndjson";
-        client.Headers["Accept"] = "application/json";
-        client.Encoding = Encoding.UTF8;
+            if (username != null && password != null)
+            {
+                string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}"));
+                client.Headers[HttpRequestHeader.Authorization] = $"Basic {credentials}";
+            }
+            client.Headers["Content-Type"] = "application/x-ndjson";
+            client.Headers["Accept"] = "application/json";
+            client.Encoding = Encoding.UTF8;
 
-        string result = string.Empty;
-        try
-        {
-            result = client.UploadString(address, bulkdata);
-        }
-        catch (WebException ex)
-        {
-            Log($"Put '{address}': >>>{bulkdata}<<<");
-            Log($"Result: >>>{result}<<<");
-            Log($"Exception: >>>{ex.ToString()}<<<");
+            string result = string.Empty;
+            try
+            {
+                result = client.UploadString(address, bulkdata);
+            }
+            catch (WebException ex)
+            {
+                Log($"Put '{address}': >>>{bulkdata}<<<");
+                Log($"Result: >>>{result}<<<");
+                Log($"Exception: >>>{ex.ToString()}<<<");
+            }
         }
     }
 
