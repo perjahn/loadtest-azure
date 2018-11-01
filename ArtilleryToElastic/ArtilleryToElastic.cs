@@ -1,6 +1,4 @@
-﻿#r "Newtonsoft.Json.dll"
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -26,7 +24,7 @@ class Program
         if (parsedArgs.Count < 4 || parsedArgs.Count > 5)
         {
             Log(
-@"Usage: csi.exe ArtilleryToElastic.csx [-f name value] <filename> <serverurl> <username> <password> [rebasetime]
+@"Usage: ArtilleryToElastic.exe [-f name value] <filename> <serverurl> <username> <password> [rebasetime]
 
 -f:          Optional extra fields that will be added to every json document.
 filename:    Artillery result file (json).
@@ -337,5 +335,3 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
         Console.WriteLine($"{message}");
     }
 }
-
-return Program.Main(Environment.GetCommandLineArgs().Skip(2).ToArray());
