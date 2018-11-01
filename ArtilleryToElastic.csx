@@ -95,11 +95,11 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
 
                 JObject jobject = new JObject
                 {
-                    ["loadtestid"] = loadtestid,
+                    ["LoadtestID"] = loadtestid,
                     ["@timestamp"] = timestamp,
                     ["_id"] = id,
-                    ["latencyns"] = latencyns,
-                    ["httpresult"] = httpresult
+                    ["LatencyNS"] = latencyns,
+                    ["HttpResult"] = httpresult
                 };
                 foreach (var field in extraFields)
                 {
@@ -109,7 +109,7 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
                 {
                     long starttime = latency[0].Value<long>() + diffms;
                     string rebasetime = (((double)starttime) / 1000).ToString(CultureInfo.InvariantCulture);
-                    jobject["rebasetimesstamp"] = rebasetime;
+                    jobject["RebaseTimestamp"] = rebasetime;
                 }
 
                 allrequests.Add(jobject);
@@ -118,7 +118,7 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
 
         Log($"Request count: {allrequests.Count}");
 
-        string[] reformattimestampfields = addrebasestarttime ? new[] { "@timestamp", "rebasetimesstamp" } : new[] { "@timestamp" };
+        string[] reformattimestampfields = addrebasestarttime ? new[] { "@timestamp", "RebaseTimestamp" } : new[] { "@timestamp" };
 
         PutIntoIndex(serverurl, username, password, "artillery", "doc", "@timestamp", "_id", allrequests.ToArray(), reformattimestampfields);
     }
