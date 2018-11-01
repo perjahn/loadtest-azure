@@ -19,11 +19,16 @@ class Program
             return UnitTest() ? 0 : 1;
         }
 
-        if (args.Length < 4 || args.Length > 5)
+        List<string> parsedArgs = args.ToList();
+
+        var extraFields = ExtractExtraFields(parsedArgs);
+
+        if (parsedArgs.Count < 4 || parsedArgs.Count > 5)
         {
             Log(
-@"Usage: csi.exe ArtilleryToElastic.csx <filename> <serverurl> <username> <password> [rebasetime]
-               
+@"Usage: csi.exe ArtilleryToElastic.csx [-f name value] <filename> <serverurl> <username> <password> [rebasetime]
+
+-f:          Optional extra fields that will be added to every json document.
 filename:    Artillery result file (json).
 serverurl:   Elasticsearch base url.
 username:    Elasticsearch username.
@@ -32,16 +37,16 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
             return 1;
         }
 
-        string filename = args[0];
-        string serverurl = args[1];
-        string username = args[2];
-        string password = args[3];
+        string filename = parsedArgs[0];
+        string serverurl = parsedArgs[1];
+        string username = parsedArgs[2];
+        string password = parsedArgs[3];
 
         bool addrebasestarttime = false;
         long rebasestartime = 0;
-        if (args.Length == 5)
+        if (parsedArgs.Count == 5)
         {
-            if (!TryParseTime(args[4], out rebasestartime))
+            if (!TryParseTime(parsedArgs[4], out rebasestartime))
             {
                 Log("Invalid rebasetime format, use HH:mm:ss pattern.");
                 return 1;
@@ -49,6 +54,14 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
             addrebasestarttime = true;
         }
 
+        UploadFile(filename, serverurl, username, password, addrebasestarttime, rebasestartime, extraFields);
+
+        return 0;
+    }
+
+    static void UploadFile(string filename, string serverurl, string username, string password, bool addrebasestarttime, long rebasestartime,
+        Dictionary<string, string> extraFields)
+    {
         byte[] binarycontent = File.ReadAllBytes(filename);
         string loadtestid = GetHashString(binarycontent);
 
@@ -88,6 +101,10 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
                     ["latencyns"] = latencyns,
                     ["httpresult"] = httpresult
                 };
+                foreach (var field in extraFields)
+                {
+                    jobject[field.Key] = field.Value;
+                }
                 if (addrebasestarttime)
                 {
                     long starttime = latency[0].Value<long>() + diffms;
@@ -104,8 +121,28 @@ rebasetime:  Optional start time (HH:mm:ss) that time stamps should be rebased o
         string[] reformattimestampfields = addrebasestarttime ? new[] { "@timestamp", "rebasetimesstamp" } : new[] { "@timestamp" };
 
         PutIntoIndex(serverurl, username, password, "artillery", "doc", "@timestamp", "_id", allrequests.ToArray(), reformattimestampfields);
+    }
 
-        return 0;
+    static Dictionary<string, string> ExtractExtraFields(List<string> parsedArgs)
+    {
+        var dic = new Dictionary<string, string>();
+
+        int index = parsedArgs.IndexOf("-f");
+        while (index >= 0 && index < parsedArgs.Count - 2)
+        {
+            string name = parsedArgs[index + 1];
+            string value = parsedArgs[index + 2];
+            Log($"Got extra field: '{name}' '{value}'");
+            dic[name] = value;
+
+            parsedArgs.RemoveAt(index);
+            parsedArgs.RemoveAt(index);
+            parsedArgs.RemoveAt(index);
+
+            index = parsedArgs.IndexOf("-f", index);
+        }
+
+        return dic;
     }
 
     static bool UnitTest()
