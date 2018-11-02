@@ -12,12 +12,13 @@ class Program
 {
     public static int Main(string[] args)
     {
-        if (args.Contains("-unittest"))
+        int stopParse = Array.FindIndex(args, a => a == "--");
+        List<string> parsedArgs = stopParse > 0 ? args.Take(stopParse).ToList(): args.ToList();
+
+        if (parsedArgs.Contains("-unittest"))
         {
             return UnitTest() ? 0 : 1;
         }
-
-        List<string> parsedArgs = args.ToList();
 
         var extraFields = ExtractExtraFields(parsedArgs);
 
