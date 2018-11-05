@@ -24,7 +24,7 @@ class Program
     <serverurl> <username> <password>
     <rebasetime>
     <source serverurl> <source username> <source password> <source index>
-    <interval start> <interval end>
+    <timestampfield>
 
 -f:          Optional extra fields that will be added to every json document.
 filename:    Artillery result file (json).
