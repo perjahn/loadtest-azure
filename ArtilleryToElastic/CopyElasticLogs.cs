@@ -138,7 +138,7 @@ class CopyElasticLogs
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var content = new StringContent(bulkdata, Encoding.UTF8, "application/x-ndjson");
-            // When content contains utf8 characters, Elastic doesn't support setting chartype (encoding after Content-Type), blank it out.
+            // Elastic doesn't support setting charset (after encoding at Content-Type), blank it out.
             content.Headers.ContentType.CharSet = string.Empty;
             var response = await client.PostAsync(address, content);
             Log(await response.Content.ReadAsStringAsync());
