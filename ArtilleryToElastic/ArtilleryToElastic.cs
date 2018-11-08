@@ -3,8 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -79,34 +77,14 @@ class ArtilleryToElastic
         string address = $"{serverurl}/_bulk";
         string bulkdata = sb.ToString();
 
-        Log("Beginning of the data...");
-        Log($">>>{bulkdata.Substring(0, 300)}<<<");
-
-        Log($"Importing documents...");
-        await ImportRows(address, username, password, bulkdata);
+        Log($"Importing {jsonrows.Length} documents...");
+        await Elastic.ImportRows(address, username, password, bulkdata);
 
         Log("Done!");
     }
 
-    static async Task ImportRows(string address, string username, string password, string bulkdata)
-    {
-        using (var client = new HttpClient())
-        {
-            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}"));
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            var content = new StringContent(bulkdata, Encoding.UTF8, "application/x-ndjson");
-            // Elastic doesn't support setting charset (after encoding at Content-Type), blank it out.
-            content.Headers.ContentType.CharSet = string.Empty;
-            var response = await client.PostAsync(address, content);
-            Log(await response.Content.ReadAsStringAsync());
-            response.EnsureSuccessStatusCode();
-        }
-    }
-
     static void Log(string message)
     {
-        Console.WriteLine($"{message}");
+        Console.WriteLine(message);
     }
 }

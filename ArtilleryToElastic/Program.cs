@@ -17,28 +17,25 @@ class Program
 
         var extraFields = ExtractExtraFields(parsedArgs);
 
-        if (parsedArgs.Count != 10)
+        if (parsedArgs.Count != 5)
         {
             Log(
-@"Usage: ArtilleryToElastic.exe [-f name value] <filename>
-    <serverurl> <username> <password>
-    <rebasetime>
-    <source serverurl> <source username> <source password> <source index>
-    <timestampfield>
+@"Usage: ArtilleryToElastic.exe [-f <name> <value>] <filename> <serverurl> <username> <password> <rebasetime>
 
 -f:          Optional extra fields that will be added to every json document.
+             -f may be specified multiple times to add multiple name/value pairs.
 filename:    Artillery result file (json).
 serverurl:   Target elasticsearch base url.
 username:    Target elasticsearch username.
 password:    Target elasticsearch password.
 rebasetime:  Start time (HH:mm:ss) that time stamps should be rebased on.
 
-Copy logging from other elastic cluster:
-source serverurl:       Elasticsearch base url.
-source username:        Elasticsearch username.
-source password:        Elasticsearch password.
-source/target index:    Elasticsearch index.
-timestampfield:         Elasticsearch timestamp field.");
+Environment variables, to copy logging from other elastic clusters:
+ElasticSourceServerurl:  Elasticsearch base url.
+ElasticSourceUsername:   Elasticsearch username.
+ElasticSourcePassword:   Elasticsearch password.
+ElasticIndex:            Elasticsearch source/target index.
+ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will be added.");
 
             return 1;
         }
@@ -48,26 +45,24 @@ timestampfield:         Elasticsearch timestamp field.");
         string username = parsedArgs[2];
         string password = parsedArgs[3];
 
+        var elasticCopySources = GetElasticCopySources();
+
         if (!TryParseTime(parsedArgs[4], out long rebasestarttime))
         {
             Log("Invalid rebasetime format, use HH:mm:ss pattern.");
             return 1;
         }
 
-        string sourceServerurl = parsedArgs[5];
-        string sourceUsername = parsedArgs[6];
-        string sourcePassword = parsedArgs[7];
-        string elasticindex = parsedArgs[8];
-        string timestampfield = parsedArgs[9];
-
         ArtilleryResult result = ArtilleryResult.ParseFile(filename, rebasestarttime);
 
         await ArtilleryToElastic.UploadResult(result, serverurl, username, password, extraFields);
 
-        await CopyElasticLogs.CopyDocuments(sourceServerurl, sourceUsername, sourcePassword,
-            serverurl, username, password,
-            elasticindex, timestampfield, result.EarliestStartTime.AddMinutes(-5), result.LastEndTime.AddMinutes(5), result.Diff_ms,
-            extraFields);
+        foreach (var elasticSource in elasticCopySources)
+        {
+            await CopyElasticLogs.CopyDocuments(elasticSource,
+                serverurl, username, password, result.EarliestStartTime.AddMinutes(-5), result.LastEndTime.AddMinutes(5), result.Diff_ms,
+                extraFields);
+        }
 
         return 0;
     }
@@ -92,6 +87,79 @@ timestampfield:         Elasticsearch timestamp field.");
         }
 
         return dic;
+    }
+
+    static ElasticCopySource[] GetElasticCopySources()
+    {
+        string[] validVariables = { "ElasticSourceServerurl", "ElasticSourceUsername", "ElasticSourcePassword", "ElasticIndex", "ElasticTimestampField",
+            "ElasticFilterField", "ElasticFilterValue" };
+
+        var creds =
+            Environment.GetEnvironmentVariables()
+            .Cast<System.Collections.DictionaryEntry>()
+            .ToDictionary(e => (string)e.Key, e => (string)e.Value)
+            .Where(e => validVariables.Any(v => e.Key.Contains(v)))
+            .GroupBy(e => new
+            {
+                prefix = e.Key.Split(validVariables, StringSplitOptions.None).First(),
+                postfix = e.Key.Split(validVariables, StringSplitOptions.None).Last()
+            })
+            .OrderBy(c => c.Key.prefix)
+            .ThenBy(c => c.Key.postfix);
+
+        var elasticCopySource = new List<ElasticCopySource>();
+        foreach (var cred in creds)
+        {
+            List<string> missingVariables = new List<string>();
+
+            string elasticSourceServerurl = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourceServerurl")).Value;
+            string elasticSourceUsername = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourceUsername")).Value;
+            string elasticSourcePassword = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourcePassword")).Value;
+            string elasticIndex = cred.SingleOrDefault(c => c.Key.Contains("ElasticIndex")).Value;
+            string elasticTimestampField = cred.SingleOrDefault(c => c.Key.Contains("ElasticTimestampField")).Value;
+            string elasticFilterField = cred.SingleOrDefault(c => c.Key.Contains("ElasticFilterField")).Value;
+            string elasticFilterValue = cred.SingleOrDefault(c => c.Key.Contains("ElasticFilterValue")).Value;
+            if (elasticSourceServerurl == null)
+            {
+                missingVariables.Add("ElasticSourceServerurl");
+            }
+            if (elasticSourceUsername == null)
+            {
+                missingVariables.Add("ElasticSourceUsername");
+            }
+            if (elasticSourcePassword == null)
+            {
+                missingVariables.Add("ElasticSourcePassword");
+            }
+            if (elasticIndex == null)
+            {
+                missingVariables.Add("ElasticIndex");
+            }
+            if (elasticTimestampField == null)
+            {
+                missingVariables.Add("ElasticTimestampField");
+            }
+
+            if (missingVariables.Count > 0)
+            {
+                Log($"Missing environment variables: Prefix: '{cred.Key.prefix}', Postfix: '{cred.Key.postfix}': '{string.Join("', '", missingVariables)}'");
+            }
+            else
+            {
+                elasticCopySource.Add(new ElasticCopySource
+                {
+                    SourceServerurl = elasticSourceServerurl,
+                    SourceUsername = elasticSourceUsername,
+                    SourcePassword = elasticSourcePassword,
+                    Index = elasticIndex,
+                    TimestampField = elasticTimestampField,
+                    ElasticFilterField = elasticFilterField,
+                    ElasticFilterValue = elasticFilterValue
+                });
+            }
+        }
+
+        return elasticCopySource.ToArray();
     }
 
     static bool UnitTest()
@@ -166,6 +234,6 @@ timestampfield:         Elasticsearch timestamp field.");
 
     static void Log(string message)
     {
-        Console.WriteLine($"{message}");
+        Console.WriteLine(message);
     }
 }
