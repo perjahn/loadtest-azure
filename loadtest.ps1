@@ -183,7 +183,7 @@ function Login()
 }
 
 function Get-ArtilleryYml()
-{   
+{
     $artilleryYml = $null
 
     if (!$env:ArtilleryYml)
@@ -216,24 +216,7 @@ function Prepare-Beat([string] $beatName, [string] $beatYml, [string] $beatFolde
             md $payloadFolder | Out-Null
         }
 
-        [string] $targetFolder = Join-Path $payloadFolder $beatName
-        if ($beatFolder)
-        {
-            if (!(Test-Path $beatFolder))
-            {
-                Log ("Missing " + $beatName + " folder: '" + $beatFolder + "'") Red
-                exit 1
-            }
-            Log ("Copying " + $beatName + " folder: '" + $beatFolder + "' -> '" + $payloadFolder + "'")
-            copy $beatFolder $payloadFolder -Recurse
-        }
-        else
-        {
-            Log ("Creating " + $beatName + " folder: '" + $targetFolder + "'")
-            md $targetFolder | Out-Null
-        }
-
-        [string] $beatFile = Join-Path $targetFolder ($beatName + ".yml")
+        [string] $beatFile = Join-Path $payloadFolder ($beatName + ".yml")
         Log ("Saving " + $beatName + " file: '" + $beatFile + "'")
         sc $beatFile $beatYml
     }
@@ -245,10 +228,12 @@ function Prepare-Beat([string] $beatName, [string] $beatYml, [string] $beatFolde
 
 function Prepare-Payload([string] $zipPassword, [string] $artilleryYml)
 {
+    [string] $payloadFolder = "payload"
+
     Set-Alias zip "C:\Program Files\7-Zip\7z.exe"
 
-    [string] $zipfile = "payload.7z"
-    [string] $filename = "artillery.yml"
+    [string] $zipfile = Join-Path ".." "payload.7z"
+    [string] $filename = Join-Path $payloadFolder "artillery.yml"
 
     if (Test-Path $zipfile)
     {
@@ -258,13 +243,16 @@ function Prepare-Payload([string] $zipPassword, [string] $artilleryYml)
 
     $artilleryYml | sc $filename
 
-    Log ("Zipping: '" + $filename + "' -> '" + $zipfile + "'")
-    zip a -mx9 $zipfile $filename -mhe ("-p" + $zipPassword)
+    cd $payloadFolder
+    Log ("Zipping: . -> '" + $zipfile + "'")
+    zip a -mx9 $zipfile -mhe ("-p" + $zipPassword)
     if (!$? -or (!(Test-Path $zipfile)) -or (dir $zipfile).Length -lt 1)
     {
+        cd ..
         Log ("Couldn't zip.") Red
         exit 1
     }
+    cd ..
 }
 
 function Upload-Payload([string] $resourceGroupName, [string] $location, [string] $storageAccountName)
