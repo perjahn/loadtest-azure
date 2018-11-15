@@ -53,7 +53,7 @@ class CopyElasticLogs
                 var jobject = new JObject(sourceDocument);
 
                 DateTime timestamp = sourceDocument["_source"][timestampfieldname];
-                jobject["_source"][$"Rebase{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
+                jobject["_source"][$"Rebased{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
 
                 foreach (var field in extraFields)
                 {

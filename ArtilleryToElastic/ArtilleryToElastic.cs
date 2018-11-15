@@ -33,14 +33,14 @@ class ArtilleryToElastic
             }
             long starttime = latency[0].Value<long>() + artilleryResult.Diff_ms;
             string rebasetime = (((double)starttime) / 1000).ToString(CultureInfo.InvariantCulture);
-            jobject["RebaseTimestamp"] = rebasetime;
+            jobject["RebasedTimestamp"] = rebasetime;
 
             allrequests.Add(jobject);
         }
 
         Log($"Request count: {allrequests.Count}");
 
-        string[] reformattimestampfields = new[] { "@timestamp", "RebaseTimestamp" };
+        string[] reformattimestampfields = new[] { "@timestamp", "RebasedTimestamp" };
 
         await PutIntoIndex(serverurl, username, password, "artillery", "doc", "@timestamp", "_id", allrequests.ToArray(), reformattimestampfields);
     }
