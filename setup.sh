@@ -61,8 +61,10 @@ sudo artillery report result.json -o result.html
 
 sudo find /var/lib/waagent -name stdout -exec cp '{}' ./stdout.txt \;
 sudo find /var/lib/waagent -name errout -exec cp '{}' ./errout.txt \;
+sudo cp /var/log/metricbeat/metricbeat ./metricbeat.txt
+sudo cp /var/log/filebeat/filebeat ./filebeat.txt
 
-7z a -mx9 result.7z -mhe -p$zippassword result.json result.html stdout.txt errout.txt
+7z a -mx9 result.7z -mhe -p$zippassword result.json result.html stdout.txt errout.txt metricbeat.txt filebeat.txt
 
 resulturl=$bloburl/result.7z
 sudo azcopy --source result.7z --destination $resulturl --dest-key $storagekey
