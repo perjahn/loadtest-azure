@@ -22,21 +22,28 @@ class Program
             Log(
 @"Usage: ArtilleryToElastic.exe [-f <name> <value>] <filename> <serverurl> <username> <password> <rebasetime>
 
+This tool imports an Artillery result file into Elasticsearch, and optionally copies other indices.
+All imported/copied documents will have an added field that contains a rebased timestamp,
+this is useful to make nighly loadtests appear to start at exactly the same time each day,
+this makes everything easy to visualize, which is the real purpose of this tool.
+
 -f:          Optional extra fields that will be added to every json document.
-             -f may be specified multiple times to add multiple name/value pairs.
+             May be specified multiple times to add multiple name/value pairs.
 filename:    Artillery result file (json).
 serverurl:   Target elasticsearch base url.
 username:    Target elasticsearch username.
 password:    Target elasticsearch password.
-rebasetime:  Start time (HH:mm:ss) that time stamps should be rebased on.
+rebasetime:  Start time (HH:mm:ss) that timestamps should be rebased on.
 
-Environment variables, to copy logging from other elastic clusters:
+Environment variables, to copy extra documents with an applied Rebased[Timestamp] field. These can be prefixed and/or suffixed.
 ElasticSourceServerurl:  Elasticsearch base url.
 ElasticSourceUsername:   Elasticsearch username.
 ElasticSourcePassword:   Elasticsearch password.
 ElasticSourceIndex:      Elasticsearch source index.
-ElasticTargetIndex:      Elasticsearch target index.
-ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will be added.");
+ElasticTargetIndex:      Elasticsearch target index. Optional. May end with date pattern, yyyy.mm.dd, yyyy.mm or yyyy.
+ElasticTimestampField:   Elasticsearch timestamp field. A Rebased[Timestamp] field will be added.
+ElasticFilterField:      Filter to reduce number of copied documents, field name. Optional.
+ElasticFilterValue:      Filter to reduce number of copied documents, field value. Optional.");
 
             return 1;
         }

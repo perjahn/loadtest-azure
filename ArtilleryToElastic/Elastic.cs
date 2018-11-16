@@ -76,6 +76,28 @@ class Elastic
         return null;
     }
 
+    public static async Task PutIntoIndex(string serverurl, string username, string password, ElasticBulkDocument[] jsonrows)
+    {
+        StringBuilder sb = new StringBuilder();
+
+        foreach (var jsonrow in jsonrows)
+        {
+            string metadata = "{ \"index\": { \"_index\": \"" + jsonrow.Index + "\", \"_type\": \"" + jsonrow.Type + "\", \"_id\": \"" + jsonrow.Id + "\" } }";
+            sb.AppendLine(metadata);
+
+            string rowdata = jsonrow.Document.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+            sb.AppendLine(rowdata);
+        }
+
+        string address = $"{serverurl}/_bulk";
+        string bulkdata = sb.ToString();
+
+        Log($"Importing {jsonrows.Length} documents...");
+        await ImportRows(address, username, password, bulkdata);
+
+        Log("Done!");
+    }
+
     public static async Task ImportRows(string address, string username, string password, string bulkdata)
     {
         WriteLogMessage(bulkdata, "post");

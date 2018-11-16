@@ -1,8 +1,11 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 class ElasticCopySettings
@@ -30,6 +33,8 @@ class CopyElasticLogs
 
         string timestampfieldname = source.TimestampField;
 
+        List<ElasticBulkDocument> newDocuments = new List<ElasticBulkDocument>();
+
         for (DateTime spanStart = starttime; spanStart < endtime; spanStart = spanStart.AddMinutes(2))
         {
             DateTime spanEnd = spanStart.AddMinutes(2) > endtime ? endtime : spanStart.AddMinutes(2);
@@ -41,69 +46,156 @@ class CopyElasticLogs
                 timestampfieldname, spanStart, spanEnd);
             if (sourceDocuments == null || sourceDocuments.Count == 0)
             {
-                Log("No documents to copy.");
+                Log("Got no documents.");
                 continue;
             }
             Log($"Source document count: {sourceDocuments.Count}");
 
-            List<JObject> newDocuments = new List<JObject>();
-
-            string doctype = sourceDocuments[0]["_type"];
-
             foreach (var sourceDocument in sourceDocuments)
             {
-                dynamic jobject = new JObject(sourceDocument);
+                dynamic jobject = new JObject(sourceDocument._source);
 
-                DateTime timestamp = sourceDocument._source[timestampfieldname];
-                jobject._source[$"Rebased{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
-
-                if (targetIndex != null)
-                {
-                    jobject._index = targetIndex;
-                }
+                DateTime timestamp = jobject[timestampfieldname];
+                jobject[$"Rebased{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
 
                 foreach (var field in extraFields)
                 {
                     jobject[field.Key] = field.Value;
                 }
 
-                newDocuments.Add(jobject);
+                var bulkDocument = new ElasticBulkDocument
+                {
+                    Index = GetIndexWithDate(targetIndex, timestamp) ?? sourceDocument._index,
+                    Id = sourceDocument._id,
+                    Type = sourceDocument._type,
+                    Document = jobject
+                };
+
+                newDocuments.Add(bulkDocument);
             }
+        }
 
-            Log($"New document count: {newDocuments.Count}");
+        if (newDocuments.Count == 0)
+        {
+            Log("No documents to copy.");
+            return;
+        }
 
-            await PutIntoIndex(targetServerurl, targetUsername, targetPassword, "_index", doctype, "_id", newDocuments.ToArray());
+        MakeSureDoublesAreDoubles(newDocuments.Select(d => d.Document).ToArray());
+
+        Log($"New document count: {newDocuments.Count}");
+
+        await Elastic.PutIntoIndex(targetServerurl, targetUsername, targetPassword, newDocuments.ToArray());
+    }
+
+    static string GetIndexWithDate(string index, DateTime datetime)
+    {
+        if (index.ToLower().EndsWith("-yyyy.mm.dd"))
+        {
+            return $"{index.Substring(0, index.Length - 11)}-{datetime:yyyy}.{datetime:MM}.{datetime:dd}";
+        }
+        else if (index.ToLower().EndsWith("-yyyy.mm"))
+        {
+            return $"{index.Substring(0, index.Length - 8)}-{datetime:yyyy}.{datetime:MM}";
+        }
+        else if (index.ToLower().EndsWith("-yyyy"))
+        {
+            return $"{index.Substring(0, index.Length - 5)}-{datetime:yyyy}";
+        }
+        else
+        {
+            return index;
         }
     }
 
-    static async Task PutIntoIndex(string serverurl, string username, string password,
-        string indexfield, string typename, string idfield, JObject[] jsonrows)
+    static void MakeSureDoublesAreDoubles(JObject[] documents)
     {
-        StringBuilder sb = new StringBuilder();
+        var propertyPaths = new List<string>(documents.SelectMany(d =>
+            d.DescendantsAndSelf()
+            .Where(j => j is JProperty)
+            .Select(p => p.Path))
+            .Distinct())
+            .OrderBy(p => p)
+            .ToArray();
 
-        foreach (JObject jsonrow in jsonrows)
+        Log($"Got {propertyPaths.Length} distinct properties: '{string.Join("', '", propertyPaths)}'");
+
+        foreach (var propertyPath in propertyPaths)
         {
-            string index = $"{jsonrow[indexfield].Value<string>()}";
-            string id = $"{jsonrow[idfield].Value<string>()}";
+            if (ShouldRewrite(documents, propertyPath))
+            {
+                Log($"Rewriting property: '{propertyPath}'", ConsoleColor.Yellow);
 
-            string metadata = "{ \"index\": { \"_index\": \"" + index + "\", \"_type\": \"" + typename + "\", \"_id\": \"" + id + "\" } }";
-            sb.AppendLine(metadata);
+                foreach (var doc in documents)
+                {
+                    var property = doc.DescendantsAndSelf().Where(p => p is JProperty && p.Path == propertyPath).Cast<JProperty>().SingleOrDefault();
+                    if (property != null)
+                    {
+                        string value = property.Value.Value<string>();
+                        if (!value.Contains('.'))
+                        {
+                            try
+                            {
+                                property.Parent[property.Name] = double.Parse($"{value}.0", CultureInfo.InvariantCulture);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log($">>>{value}<<<");
+                                Log(ex.ToString());
+                                throw;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-            string rowdata = jsonrow["_source"].ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
-            sb.AppendLine(rowdata);
+    static bool ShouldRewrite(JObject[] documents, string propertyPath)
+    {
+        Console.ForegroundColor = ConsoleColor.Gray;
+        bool isDouble = false;
+        bool isNumber = true;
+
+        foreach (var doc in documents)
+        {
+            var property = doc.DescendantsAndSelf().Where(p => p is JProperty && p.Path == propertyPath).Cast<JProperty>().SingleOrDefault();
+            if (property != null && property.Value is JValue)
+            {
+                var value = property.Value.Value<string>();
+                if (value != null)
+                {
+                    if (!Regex.IsMatch(value, "^[0-9]+$") && !Regex.IsMatch(value, @"^[0-9]+\.[0-9]+$"))
+                    {
+                        isNumber = false;
+                    }
+                    if (Regex.IsMatch(value, @"^[0-9]+\.[0-9]+$"))
+                    {
+                        isDouble = true;
+                    }
+                }
+            }
         }
 
-        string address = $"{serverurl}/_bulk";
-        string bulkdata = sb.ToString();
-
-        Log($"Importing {jsonrows.Length} documents...");
-        await Elastic.ImportRows(address, username, password, bulkdata);
-
-        Log("Done!");
+        return isDouble && isNumber;
     }
 
     static void Log(string message)
     {
         Console.WriteLine(message);
+    }
+
+    static void Log(string message, ConsoleColor color)
+    {
+        ConsoleColor oldColor = Console.ForegroundColor;
+        try
+        {
+            Console.ForegroundColor = color;
+            Log(message);
+        }
+        finally
+        {
+            Console.ForegroundColor = oldColor;
+        }
     }
 }
