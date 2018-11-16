@@ -34,7 +34,8 @@ Environment variables, to copy logging from other elastic clusters:
 ElasticSourceServerurl:  Elasticsearch base url.
 ElasticSourceUsername:   Elasticsearch username.
 ElasticSourcePassword:   Elasticsearch password.
-ElasticIndex:            Elasticsearch source/target index.
+ElasticSourceIndex:      Elasticsearch source index.
+ElasticTargetIndex:      Elasticsearch target index.
 ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will be added.");
 
             return 1;
@@ -60,7 +61,7 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
         foreach (var elasticSource in elasticCopySources)
         {
             await CopyElasticLogs.CopyDocuments(elasticSource,
-                serverurl, username, password, result.EarliestStartTime.AddMinutes(-5), result.LastEndTime.AddMinutes(5), result.Diff_ms,
+                serverurl, username, password, elasticSource.TargetIndex, result.EarliestStartTime.AddMinutes(-5), result.LastEndTime.AddMinutes(5), result.Diff_ms,
                 extraFields);
         }
 
@@ -89,10 +90,17 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
         return dic;
     }
 
-    static ElasticCopySource[] GetElasticCopySources()
+    static ElasticCopySettings[] GetElasticCopySources()
     {
-        string[] validVariables = { "ElasticSourceServerurl", "ElasticSourceUsername", "ElasticSourcePassword", "ElasticIndex", "ElasticTimestampField",
-            "ElasticFilterField", "ElasticFilterValue" };
+        string[] validVariables = {
+            "ElasticSourceServerurl",
+            "ElasticSourceUsername",
+            "ElasticSourcePassword",
+            "ElasticSourceIndex",
+            "ElasticTargetIndex",
+            "ElasticTimestampField",
+            "ElasticFilterField",
+            "ElasticFilterValue" };
 
         var creds =
             Environment.GetEnvironmentVariables()
@@ -107,7 +115,7 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
             .OrderBy(c => c.Key.prefix)
             .ThenBy(c => c.Key.postfix);
 
-        var elasticCopySource = new List<ElasticCopySource>();
+        var elasticCopySettings = new List<ElasticCopySettings>();
         foreach (var cred in creds)
         {
             List<string> missingVariables = new List<string>();
@@ -115,7 +123,8 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
             string elasticSourceServerurl = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourceServerurl")).Value;
             string elasticSourceUsername = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourceUsername")).Value;
             string elasticSourcePassword = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourcePassword")).Value;
-            string elasticIndex = cred.SingleOrDefault(c => c.Key.Contains("ElasticIndex")).Value;
+            string elasticSourceIndex = cred.SingleOrDefault(c => c.Key.Contains("ElasticSourceIndex")).Value;
+            string elasticTargetIndex = cred.SingleOrDefault(c => c.Key.Contains("ElasticTargetIndex")).Value;
             string elasticTimestampField = cred.SingleOrDefault(c => c.Key.Contains("ElasticTimestampField")).Value;
             string elasticFilterField = cred.SingleOrDefault(c => c.Key.Contains("ElasticFilterField")).Value;
             string elasticFilterValue = cred.SingleOrDefault(c => c.Key.Contains("ElasticFilterValue")).Value;
@@ -131,9 +140,9 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
             {
                 missingVariables.Add("ElasticSourcePassword");
             }
-            if (elasticIndex == null)
+            if (elasticSourceIndex == null)
             {
-                missingVariables.Add("ElasticIndex");
+                missingVariables.Add("ElasticSourceIndex");
             }
             if (elasticTimestampField == null)
             {
@@ -146,12 +155,13 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
             }
             else
             {
-                elasticCopySource.Add(new ElasticCopySource
+                elasticCopySettings.Add(new ElasticCopySettings
                 {
                     SourceServerurl = elasticSourceServerurl,
                     SourceUsername = elasticSourceUsername,
                     SourcePassword = elasticSourcePassword,
-                    Index = elasticIndex,
+                    SourceIndex = elasticSourceIndex,
+                    TargetIndex = elasticTargetIndex,
                     TimestampField = elasticTimestampField,
                     ElasticFilterField = elasticFilterField,
                     ElasticFilterValue = elasticFilterValue
@@ -159,7 +169,7 @@ ElasticTimestampField:   Elasticsearch timestamp field. A Rebased... field will 
             }
         }
 
-        return elasticCopySource.ToArray();
+        return elasticCopySettings.ToArray();
     }
 
     static bool UnitTest()

@@ -5,12 +5,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-class ElasticCopySource
+class ElasticCopySettings
 {
     public string SourceServerurl { get; set; }
     public string SourceUsername { get; set; }
     public string SourcePassword { get; set; }
-    public string Index { get; set; }
+    public string SourceIndex { get; set; }
+    public string TargetIndex { get; set; }
     public string TimestampField { get; set; }
     public string ElasticFilterField { get; set; }
     public string ElasticFilterValue { get; set; }
@@ -19,12 +20,13 @@ class ElasticCopySource
 class CopyElasticLogs
 {
     public static async Task CopyDocuments(
-        ElasticCopySource source,
-        string targetServerurl, string targetUsername, string targetPassword,
+        ElasticCopySettings source,
+        string targetServerurl, string targetUsername, string targetPassword, string targetIndex,
         DateTime starttime, DateTime endtime, long diff_ms,
         Dictionary<string, string> extraFields)
     {
-        Log($"starttime: {starttime:yyyy-MM-dd HH:mm:ss.fff}, endtime: {endtime:yyyy-MM-dd HH:mm:ss.fff}, diffms: {diff_ms}");
+        Log($"Copying: {targetServerurl}/{targetUsername}/{new string('*', targetPassword.Length)}/{targetIndex ?? "<null>"}, " +
+            $"starttime: {starttime:yyyy-MM-dd HH:mm:ss.fff}, endtime: {endtime:yyyy-MM-dd HH:mm:ss.fff}, diffms: {diff_ms}");
 
         string timestampfieldname = source.TimestampField;
 
@@ -34,7 +36,7 @@ class CopyElasticLogs
 
             Log($"time span: {spanStart:yyyy-MM-dd HH:mm:ss.fff} - {spanEnd:yyyy-MM-dd HH:mm:ss.fff}");
 
-            dynamic sourceDocuments = await Elastic.GetRowsAsync(source.SourceServerurl, source.SourceUsername, source.SourcePassword, source.Index,
+            dynamic sourceDocuments = await Elastic.GetRowsAsync(source.SourceServerurl, source.SourceUsername, source.SourcePassword, source.SourceIndex,
                 source.ElasticFilterField, source.ElasticFilterValue,
                 timestampfieldname, spanStart, spanEnd);
             if (sourceDocuments == null || sourceDocuments.Count == 0)
@@ -50,10 +52,15 @@ class CopyElasticLogs
 
             foreach (var sourceDocument in sourceDocuments)
             {
-                var jobject = new JObject(sourceDocument);
+                dynamic jobject = new JObject(sourceDocument);
 
-                DateTime timestamp = sourceDocument["_source"][timestampfieldname];
-                jobject["_source"][$"Rebased{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
+                DateTime timestamp = sourceDocument._source[timestampfieldname];
+                jobject._source[$"Rebased{timestampfieldname}"] = timestamp.AddMilliseconds(diff_ms).ToString("o");
+
+                if (targetIndex != null)
+                {
+                    jobject._index = targetIndex;
+                }
 
                 foreach (var field in extraFields)
                 {
