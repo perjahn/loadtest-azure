@@ -9,9 +9,21 @@ function Main($mainargs)
 
     if (!$mainargs -or $mainargs.Count -ne 3)
     {
-        Log ("Usage: powershell .\create.ps1 <subscription> <resourcegroup> <storageaccount>") Red
+        Log ("Usage: pwsh loadtest.ps1 <subscription> <resourcegroup> <storageaccount>") Red
         exit 1
     }
+
+
+    [string] $zipexe = "C:\Program Files\7-Zip\7z.exe"
+    if (Test-Path $zipexe)
+    {
+        Set-Alias zip $zipexe
+    }
+    else
+    {
+        Set-Alias zip p7zip
+    }
+
 
     [string] $subscriptionName = $mainargs[0]
     [string] $resourceGroupName = $mainargs[1]
@@ -39,6 +51,13 @@ function Main($mainargs)
         rd -Recurse -Force $payloadFolder
     }
 
+    [string] $payloadFile = "payload.7z"
+    if (Test-Path $payloadFile)
+    {
+        Log ("Deleting payload file: '" + $payloadFile + "'")
+        del $payloadFile
+    }
+
     Load-Dependencies
 
     [string] $artilleryYml = Get-ArtilleryYml
@@ -54,43 +73,39 @@ function Main($mainargs)
     Log ("Generating password.")
     [string] $password = Generate-AlphanumericPassword 24
 
-    Prepare-Beat "metricbeat" $env:MetricbeatYml
-    Prepare-Beat "filebeat" $env:FilebeatYml
+    Prepare-Beat $payloadFolder "metricbeat" $env:MetricbeatYml
+    Prepare-Beat $payloadFolder "filebeat" $env:FilebeatYml
 
     Log ("Generating payload password.")
     [string] $zipPassword = Generate-AlphanumericPassword 24
 
-    Prepare-Payload $zipPassword $artilleryYml
+    Prepare-Payload $payloadFolder $payloadFile $zipPassword $artilleryYml
 
 
-    Login
+    Login $subscriptionName
 
-    Log ("Selecting subscription: '" + $SubscriptionName + "'")
-    Select-AzureRmSubscription -SubscriptionName $SubscriptionName | Out-Null
-
-    $resourceGroup = Get-AzureRmResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
+    $resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
     if (!$resourceGroup)
     {
         Log ("Creating resource group: '" + $resourceGroupName + "' at '" + $location + "'")
-        New-AzureRmResourceGroup -Name $resourceGroupName -Location $location
+        New-AzResourceGroup -Name $resourceGroupName -Location $location
     }
     else
     {
         Log ("Using existing resource group: '" + $resourceGroupName + "'")
     }
 
-    $sasurls = Upload-Payload $resourceGroupName $location $storageAccountName
+    $sasurls = Upload-Payload $payloadFile $resourceGroupName $location $storageAccountName
     Update-ParametersFile $parametersFile $resourceGroupName $location $username $password $ipaddress $zipPassword $sasurls
 
     Log ("Deploying: '" + $resourceGroupName + "' '" + $templateFile + "' '" + $parametersFile + "'")
-
     try
     {
-        New-AzureRmResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile
+        New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile
     }
     catch
     {
-        Log ("Couldn't create resource group.")
+        Log ("Couldn't deploy resources: " + $_.Exception.ToString()) Yellow
     }
 
     try
@@ -99,17 +114,17 @@ function Main($mainargs)
     }
     catch
     {
-        Log ("Couldn't download result.")
+        Log ("Couldn't download result: " + $_.Exception.ToString()) Yellow
     }
 
     Log ("Deleting resource group: '" + $resourceGroupName + "'")
     try
     {
-        Remove-AzureRmResourceGroup $resourceGroupName -Force
+        Remove-AzResourceGroup $resourceGroupName -Force
     }
     catch
     {
-        Log ("Couldn't delete resource group.")
+        Log ("Couldn't delete resource group: " + $_.Exception.ToString()) Yellow
     }
 
     Log ("Done: " + $watch.Elapsed)
@@ -117,21 +132,14 @@ function Main($mainargs)
 
 function Load-Dependencies()
 {
-    if ([Environment]::Version.Major -lt 4)
-    {
-        Log ("Newtonsoft.Json 11.0.2 requires .net 4 (Powershell 3.0), you have: " + [Environment]::Version) Red
-        exit 1
-    }
-
-    [string] $nugetpkg = "https://www.nuget.org/api/v2/package/Newtonsoft.Json/11.0.2"
+    [string] $nugetpkg = "https://www.nuget.org/api/v2/package/Newtonsoft.Json/12.0.1"
     [string] $zipfile = Join-Path $env:temp "json.zip"
-    [string] $dllfile = "Newtonsoft.Json.dll"
-    [string] $zipfilepath = Join-Path (Join-Path $zipfile "lib\net45") $dllfile
-    [string] $dllfilepath = Join-Path $env:temp $dllfile
+    [string] $dllfolder = Join-Path $env:temp "jsondll"
+    [string] $dllfile = Join-Path $env:temp "jsondll" "lib" "netstandard2.0" "Newtonsoft.Json.dll"
 
-    if (Test-Path $dllfilepath)
+    if (Test-Path $dllfile)
     {
-        Log ("File already downloaded: '" + $dllfilepath + "'")
+        Log ("File already downloaded: '" + $dllfile + "'")
     }
     else
     {
@@ -143,13 +151,12 @@ function Load-Dependencies()
             exit 1
         }
 
-        Log ("Extracting: '" + $zipfilepath + "' -> '" + $env:temp + "'")
-        $shell = New-Object -com Shell.Application
-        $shell.Namespace($env:temp).CopyHere($zipfilepath, 20)
+        Log ("Extracting: '" + $zipfile + "' -> '" + $dllfolder + "'")
+        Expand-Archive $zipfile $dllfolder
 
-        if (!(Test-Path $dllfilepath))
+        if (!(Test-Path $dllfile))
         {
-            Log ("Couldn't extract: '" + $dllfilepath + "'") Red
+            Log ("Couldn't extract: '" + $dllfile + "'") Red
             exit 1
         }
 
@@ -157,28 +164,27 @@ function Load-Dependencies()
         del $zipfile
     }
 
-    Log ("Loading assembly: '" + $dllfilepath + "'")
-    [Reflection.Assembly]::LoadFile($dllfilepath) | Out-Null
+    Log ("Loading assembly: '" + $dllfile + "'")
+    Import-Module $dllfile | Out-Null
 }
 
-function Login()
+function Login([string] $subscriptionName)
 {
     [string] $tenantId = $env:AzureTenantId
-    [string] $subscriptionId = $env:AzureSubscriptionId
     [string] $clientId = $env:AzureClientId
     [string] $clientSecret = $env:AzureClientSecret
 
-    Log ("Logging in...")
-    if ($tenantId -and $subscriptionId -and $clientId -and $clientSecret)
+    Log ("Logging in: '" + $subscriptionName + "'")
+    if ($tenantId -and $clientId -and $clientSecret)
     {
         $ss = $clientSecret | ConvertTo-SecureString -Force -AsPlainText
         $creds = New-Object PSCredential -ArgumentList $clientId, $ss
 
-        Connect-AzureRmAccount -ServicePrincipal -TenantId $tenantId -SubscriptionId $subscriptionId -Credential $creds
+        Connect-AzAccount -Subscription $subscriptionName -ServicePrincipal -Tenant $tenantId -Credential $creds
     }
     else
     {
-        Login-AzureRmAccount | Out-Null
+        Connect-AzAccount -Subscription $subscriptionName | Out-Null
     }
 }
 
@@ -204,46 +210,40 @@ function Get-ArtilleryYml()
     return $artilleryYml
 }
 
-function Prepare-Beat([string] $beatName, [string] $beatYml, [string] $beatFolder)
+function Prepare-Beat([string] $payloadFolder, [string] $beatName, [string] $beatYml, [string] $beatFolder)
 {
-    [string] $payloadFolder = "payload"
-
-    if ($beatYml)
-    {
-        if (!(Test-Path $payloadFolder))
-        {
-            Log ("Creating payload folder: '" + $payloadFolder + "'")
-            md $payloadFolder | Out-Null
-        }
-
-        [string] $beatFile = Join-Path $payloadFolder ($beatName + ".yml")
-        Log ("Saving " + $beatName + " file: '" + $beatFile + "'")
-        sc $beatFile $beatYml
-    }
-    else
+    if (!$beatYml)
     {
         Log ("Ignoring " + $beatName + ".") Yellow
+        return
     }
+
+    if (!(Test-Path $payloadFolder))
+    {
+        Log ("Creating payload folder: '" + $payloadFolder + "'")
+        md $payloadFolder | Out-Null
+    }
+
+    [string] $beatFile = Join-Path $payloadFolder ($beatName + ".yml")
+    Log ("Saving " + $beatName + " file: '" + $beatFile + "'")
+    Set-Content $beatFile $beatYml
 }
 
-function Prepare-Payload([string] $zipPassword, [string] $artilleryYml)
+function Prepare-Payload([string] $payloadFolder, [string] $payloadFile, [string] $zipPassword, [string] $artilleryYml)
 {
-    [string] $payloadFolder = "payload"
-
-    Set-Alias zip "C:\Program Files\7-Zip\7z.exe"
-
-    [string] $zipfile = Join-Path ".." "payload.7z"
-    [string] $filename = Join-Path $payloadFolder "artillery.yml"
-
-    if (Test-Path $zipfile)
+    if (!(Test-Path $payloadFolder))
     {
-        Log ("Deleting zipfile: '" + $zipfile + "'")
-        del $zipfile
+        Log ("Creating payload folder: '" + $payloadFolder + "'")
+        md $payloadFolder | Out-Null
     }
 
-    $artilleryYml | sc $filename
+    [string] $zipfile = Join-Path ".." $payloadFile
+    [string] $filename = Join-Path $payloadFolder "artillery.yml"
+
+    Set-Content $filename $artilleryYml
 
     cd $payloadFolder
+    Log ("Current dir: '" + (pwd).Path + "'")
     Log ("Zipping: . -> '" + $zipfile + "'")
     zip a -mx9 $zipfile -mhe ("-p" + $zipPassword)
     if (!$? -or (!(Test-Path $zipfile)) -or (dir $zipfile).Length -lt 1)
@@ -255,10 +255,9 @@ function Prepare-Payload([string] $zipPassword, [string] $artilleryYml)
     cd ..
 }
 
-function Upload-Payload([string] $resourceGroupName, [string] $location, [string] $storageAccountName)
+function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [string] $location, [string] $storageAccountName)
 {
     [string] $sevenZip = "sevenzip.zip"
-    [string] $payloadZip = "payload.7z"
 
     [string] $storageKind = "BlobStorage"
     [string] $containerName = [Guid]::NewGuid().ToString()
@@ -270,26 +269,27 @@ function Upload-Payload([string] $resourceGroupName, [string] $location, [string
     $storageAccount = $null
     try
     {
-        $storageAccount = New-AzureRmStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $location -Type $type -Kind $storageKind -AccessTier $accessTier
-        # -EnableEncryptionService -EnableHttpsTrafficOnly
+        $storageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $location -Type $type -Kind $storageKind -AccessTier $accessTier
     }
     catch
     {
         Log $_.Exception Yellow
 
         Log ("Retrieving deployment storage account")
-        $storageAccount = Get-AzureRmStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName
+        $storageAccount = Get-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName
     }
 
     Log ("Retrieving deployment storage account key")
-    $storageAccountKey = Get-AzureRmStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccount.StorageAccountName
+    $storageAccountKey = Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccount.StorageAccountName
     $storageKey = $storageAccountKey[0].Value
 
     Log ("Creating deployment storage context")
-    $storageContext = New-AzureStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
-
-    Log ("Creating deployment storage container: '" + $containerName + "'")
-    New-AzureStorageContainer -Name $containerName -Context $storageContext | Out-Null
+    $storageContext = New-AzStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
+    
+    Run-Robust {
+            Log ("Creating deployment storage container (try " + ($i+1) + "): '" + $containerName + "'")
+            New-AzStorageContainer -Name $containerName -Context $storageContext | Out-Null
+        } { Clear-DnsClientCache } 12 5
 
     [DateTime] $now = Get-Date
     [DateTime] $endtime = $now.AddHours(1.0)
@@ -299,14 +299,14 @@ function Upload-Payload([string] $resourceGroupName, [string] $location, [string
         [string] $setupScript = "setup.ps1"
         Log ("Windows, using setup script: '" + $setupScript + "'")
         [string[]] $keys = "setupScriptUrl", "sevenZipUrl", "payloadZipUrl"
-        [string[]] $files = $setupScript, $sevenZip, $payloadZip
+        [string[]] $files = $setupScript, $sevenZip, $payloadFile
     }
     elseif ((Test-Path "setup.sh"))
     {
         [string] $setupScript = "setup.sh"
         Log ("Linux, using setup script: '" + $setupScript + "'")
         [string[]] $keys = "setupScriptUrl", "payloadZipUrl"
-        [string[]] $files = $setupScript, $payloadZip
+        [string[]] $files = $setupScript, $payloadFile
     }
     else
     {
@@ -314,9 +314,9 @@ function Upload-Payload([string] $resourceGroupName, [string] $location, [string
         exit 1
     }
 
-    if (!(Test-Path $payloadZip))
+    if (!(Test-Path $payloadFile))
     {
-        Log ("Missing payload file: '" + $payloadZip + "'")
+        Log ("Missing payload file: '" + $payloadFile + "'")
         exit 1
     }
 
@@ -340,15 +340,40 @@ function Upload-Payload([string] $resourceGroupName, [string] $location, [string
     return $urls
 }
 
+function Run-Robust([ScriptBlock] $main, [ScriptBlock] $cleanup, [int] $retries, [int] $sleepSeconds)
+{
+    for ([int] $i=0; $i -lt $retries; $i++)
+    {
+        try
+        {
+            &$main
+            break
+        }
+        catch
+        {
+            Log $_.Exception
+            if ($i -eq ($retries-1))
+            {
+                throw
+            }
+            if ($cleanup)
+            {
+                &$cleanup
+            }
+            Start-Sleep $sleepSeconds
+        }
+    }
+}
+
 function Upload-Blob($storageContext, [string] $containerName, [string] $filename, [DateTime] $now, [DateTime] $endtime)
 {
     [string] $blobName = Split-Path -Leaf $filename
     [string] $url = $storageContext.BlobEndPoint + $containerName + "/" + $blobName
 
     Log ("Uploading '" + $filename + "' to '" + $url + "'")
-    Set-AzureStorageBlobContent -Container $containerName -File $filename -Blob $blobName -Context $storageContext -BlobType "Block" -Force | Out-Null
+    Set-AzStorageBlobContent -Container $containerName -File $filename -Blob $blobName -Context $storageContext -BlobType "Block" -Force | Out-Null
 
-    [string] $sas = New-AzureStorageBlobSASToken -Container $containerName -Blob $blobName -Context $storageContext -Permission r -StartTime $now -ExpiryTime $endtime
+    [string] $sas = New-AzStorageBlobSASToken -Container $containerName -Blob $blobName -Context $storageContext -Permission r -StartTime $now -ExpiryTime $endtime
     [string] $sasurl = $url + $sas
     Log ("Got sasurl: '" + $sasurl + "'")
 
@@ -410,17 +435,15 @@ function Update-ParametersFile([string] $parametersFile, [string] $resourceGroup
 
 function Download-Result([string] $resourceGroupName, [string] $storageAccountName, [string] $blobUrl, [string] $containerName, [string] $zipfile, [string] $zipPassword)
 {
-    Set-Alias zip "C:\Program Files\7-Zip\7z.exe"
-
     Log ("Retrieving result storage account")
-    $storageAccount = Get-AzureRmStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName
+    $storageAccount = Get-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName
 
     Log ("Retrieving deployment storage account key")
-    $storageAccountKey = Get-AzureRmStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccount.StorageAccountName
+    $storageAccountKey = Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccount.StorageAccountName
     $storageKey = $storageAccountKey[0].Value
 
     Log ("Creating deployment storage context")
-    $storageContext = New-AzureStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
+    $storageContext = New-AzStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
 
 
     [string] $url = $blobUrl + "/" + $zipfile
@@ -458,7 +481,7 @@ function Download-Result([string] $resourceGroupName, [string] $storageAccountNa
     }
 
     Log ("Downloading '" + $url + "' to '" + $zipfile + "'")
-    Get-AzureStorageBlobContent -Container $containerName -Blob $blobName -Context $storageContext | Out-Null
+    Get-AzStorageBlobContent -Container $containerName -Blob $blobName -Context $storageContext | Out-Null
 
     zip x $zipfile ("-p" + $zipPassword)
 }
@@ -475,16 +498,15 @@ function Obfuscate-String([string] $text, [string] $textname)
     }
 }
 
-function Generate-AlphanumericPassword([int] $chars)
+function Generate-AlphanumericPassword([int] $numberOfChars)
 {
-    Import-Module "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Web.dll"
-
+    [char[]] $validChars = 'a'..'z' + 'A'..'Z' + [char]'0'..[char]'9'
     [string] $password = ""
     do
     {
-        [string] $password = [System.Web.Security.Membership]::GeneratePassword($chars,0)
+        [string] $password = (1..$numberOfChars | % { $validChars[(Get-Random -Maximum $validChars.Length)] }) -join ""
     }
-    while (($password | ? { ($_.ToCharArray() | ? { ![Char]::IsLetterOrDigit($_) }) }) -or
+    while (
         !($password | ? { ($_.ToCharArray() | ? { [Char]::IsUpper($_) }) }) -or
         !($password | ? { ($_.ToCharArray() | ? { [Char]::IsLower($_) }) }) -or
         !($password | ? { ($_.ToCharArray() | ? { [Char]::IsDigit($_) }) }));
