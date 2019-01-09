@@ -95,8 +95,10 @@ function Main($mainargs)
         Log ("Using existing resource group: '" + $resourceGroupName + "'")
     }
 
-    $sasurls = Upload-Payload $payloadFile $resourceGroupName $location $storageAccountName
-    Update-ParametersFile $parametersFile $resourceGroupName $location $username $password $ipaddress $zipPassword $sasurls
+    [DateTime] $now = Get-Date
+
+    $sasurls = Upload-Payload $payloadFile $resourceGroupName $location $storageAccountName $now
+    Update-ParametersFile $parametersFile $username $password $ipaddress $zipPassword $now.AddHours(1) $sasurls
 
     Log ("Deploying: '" + $resourceGroupName + "' '" + $templateFile + "' '" + $parametersFile + "'")
     try
@@ -185,6 +187,7 @@ function Login([string] $subscriptionName)
     else
     {
         Connect-AzAccount -Subscription $subscriptionName | Out-Null
+        #Select-AzContext ($subscriptionName + " (" + $subscriptionId + ") - " + $emailAddress
     }
 }
 
@@ -255,7 +258,7 @@ function Prepare-Payload([string] $payloadFolder, [string] $payloadFile, [string
     cd ..
 }
 
-function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [string] $location, [string] $storageAccountName)
+function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [string] $location, [string] $storageAccountName, [DateTime] $now)
 {
     [string] $sevenZip = "sevenzip.zip"
 
@@ -285,13 +288,12 @@ function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [str
 
     Log ("Creating deployment storage context")
     $storageContext = New-AzStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
-    
+
     Run-Robust {
             Log ("Creating deployment storage container (try " + ($i+1) + "): '" + $containerName + "'")
             New-AzStorageContainer -Name $containerName -Context $storageContext | Out-Null
         } { Clear-DnsClientCache } 12 5
 
-    [DateTime] $now = Get-Date
     [DateTime] $endtime = $now.AddHours(1.0)
 
     if ((Test-Path "setup.ps1") -and (Test-Path $sevenZip))
@@ -380,15 +382,14 @@ function Upload-Blob($storageContext, [string] $containerName, [string] $filenam
     return $sasurl
 }
 
-function Update-ParametersFile([string] $parametersFile, [string] $resourceGroupName, [string] $location, [string] $username, [string] $password, [string] $ipaddress, [string] $zipPassword, $sasurls)
+function Update-ParametersFile([string] $parametersFile, [string] $username, [string] $password, [string] $ipaddress, [string] $zipPassword, [DateTime] $autoShutdownTime, $sasurls)
 {
     $replaceValues = @{}
-    $replaceValues["vnetResourceGroupName"] = $resourceGroupName
-    $replaceValues["location"] = $location
     $replaceValues["adminUsername"] = $username
     $replaceValues["adminPassword"] = $password
-    $replaceValues["firewallIpAddress"] = $ipaddress
+    $replaceValues["sourceAddressPrefix"] = $ipaddress
     $replaceValues["zipPassword"] = $zipPassword
+    $replaceValues["autoShutdownTime"] = $autoShutdownTime.ToString("HH:mm")
 
     $sasurls.Keys | % {
         $replaceValues[$_] = $sasurls[$_]
@@ -409,17 +410,36 @@ function Update-ParametersFile([string] $parametersFile, [string] $resourceGroup
 
     [bool] $changed = $false
 
-    $json.parameters.Children() | % {
-        $element = $_
-        if ($replaceValues | ? { $_.ContainsKey($element.Name.ToLower()) })
+    foreach ($elementName in ($replaceValues.Keys | sort))
+    {
+        $elements = @($json.parameters.Descendants() | ? { ($_.GetType().Name -eq "JProperty") -and ($_.Name -eq $elementName) })
+        if (!$elements)
         {
-            [string] $newvalue = $replaceValues[$element.Name.ToLower()]
+            Log ("Couldn't find element: '" + $elementName + "'") Yellow
+            continue
+        }
 
-            if ($element.value.value.value -ne $newvalue)
+        foreach ($element in $elements)
+        {
+            [string] $newvalue = $replaceValues[$elementName]
+
+            if ($element.children().children())
             {
-                Log ("Updating '" + $filename + "', " + $element.Name + ": '" + $element.value.value.value + "' -> '" + (Obfuscate-String $newvalue $element.Name) + "'")
-                $element.value.value = $newvalue
-                $changed = $true
+                if ($element.value.value.value -ne $newvalue)
+                {
+                    Log ("Updating .value '" + $filename + "', " + $element.Name + ": '" + $element.value.value.value + "' -> '" + (Obfuscate-String $newvalue $element.Name) + "'")
+                    $element.value.value = $newvalue
+                    $changed = $true
+                }
+            }
+            else
+            {
+                if ($element.value -ne $newvalue)
+                {
+                    Log ("Updating '" + $filename + "', " + $element.Name + ": '" + $element.value + "' -> '" + (Obfuscate-String $newvalue $element.Name) + "'")
+                    $element.value.value = $newvalue
+                    $changed = $true
+                }
             }
         }
     }

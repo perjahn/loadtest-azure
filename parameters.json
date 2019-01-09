@@ -2,41 +2,54 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "vnetResourceGroupName": {
-      "value": ""
-    },
-    "location": {
-      "value": ""
-    },
-    "virtualMachineName": {
-      "value": "vm-loadazure"
-    },
-    "virtualMachineSize": {
-      "value": "Standard_F64s_v2"
-    },
-    "adminUsername": {
-      "value": ""
-    },
-    "adminPassword": {
-      "value": ""
-    },
-    "virtualNetworkName": {
-      "value": "vnet-loadazure"
-    },
     "networkInterfaceName": {
       "value": "nic-loadazure"
+    },
+    "enableAcceleratedNetworking": {
+      "value": true
     },
     "networkSecurityGroupName": {
       "value": "nsg-loadazure"
     },
-    "addressPrefix": {
-      "value": "10.3.0.0/24"
+    "networkSecurityGroupRules": {
+      "value": [
+        {
+          "name": "default-allow-ssh",
+          "properties": {
+            "priority": 1000,
+            "protocol": "TCP",
+            "access": "Allow",
+            "direction": "Inbound",
+            "sourceApplicationSecurityGroups": [],
+            "destinationApplicationSecurityGroups": [],
+            "sourceAddressPrefix": "",
+            "sourcePortRange": "*",
+            "destinationAddressPrefix": "*",
+            "destinationPortRange": "22"
+          }
+        }
+      ]
     },
     "subnetName": {
       "value": "default"
     },
-    "subnetPrefix": {
-      "value": "10.3.0.0/24"
+    "virtualNetworkName": {
+      "value": "vnet-loadazure"
+    },
+    "addressPrefixes": {
+      "value": [
+        "10.0.0.0/24"
+      ]
+    },
+    "subnets": {
+      "value": [
+        {
+          "name": "default",
+          "properties": {
+            "addressPrefix": "10.0.0.0/24"
+          }
+        }
+      ]
     },
     "publicIpAddressName": {
       "value": "pip-loadazure"
@@ -47,14 +60,38 @@
     "publicIpAddressSku": {
       "value": "Basic"
     },
-    "firewallIpAddress": {
-      "value": ""
+    "virtualMachineName": {
+      "value": "vm-loadazure"
     },
     "osDiskName": {
       "value": "disk-loadazure"
     },
     "osDiskSizeGB": {
       "value": "32"
+    },
+    "virtualMachineSize": {
+      "value": "Standard_F64s_v2"
+    },
+    "adminUsername": {
+      "value": ""
+    },
+    "adminPassword": {
+      "value": ""
+    },
+    "autoShutdownStatus": {
+      "value": "Enabled"
+    },
+    "autoShutdownTime": {
+      "value": ""
+    },
+    "autoShutdownTimeZone": {
+      "value": "UTC"
+    },
+    "autoShutdownNotificationStatus": {
+      "value": "Disabled"
+    },
+    "autoShutdownNotificationLocale": {
+      "value": "en"
     },
     "setupScriptUrl": {
       "value": ""
