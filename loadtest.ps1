@@ -103,7 +103,7 @@ function Main($mainargs)
     Log ("Deploying: '" + $resourceGroupName + "' '" + $templateFile + "' '" + $parametersFile + "'")
     try
     {
-        New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile
+        Log-TCTime "LoadTestCreateResourceGroup" { New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templateFile -TemplateParameterFile $parametersFile }
     }
     catch
     {
@@ -122,7 +122,7 @@ function Main($mainargs)
     Log ("Deleting resource group: '" + $resourceGroupName + "'")
     try
     {
-        Remove-AzResourceGroup $resourceGroupName -Force
+        Log-TCStat "LoadTestRemoveResourceGroup" { Remove-AzResourceGroup $resourceGroupName -Force }
     }
     catch
     {
@@ -532,6 +532,20 @@ function Generate-AlphanumericPassword([int] $numberOfChars)
         !($password | ? { ($_.ToCharArray() | ? { [Char]::IsDigit($_) }) }));
 
     return $password
+}
+
+function Log-TCTime([string] $key, [ScriptBlock] $script)
+{
+    [Diagnostics.Stopwatch] $watch = [Diagnostics.Stopwatch]::StartNew()
+
+    try
+    {
+        &$script
+    }
+    finally
+    {
+        Log("##teamcity[buildStatisticValue key='" + $key + "' value='" + [int]$watch.Elapsed.TotalMilliseconds + "']") Magenta
+    }
 }
 
 function Log([string] $message, $color)
