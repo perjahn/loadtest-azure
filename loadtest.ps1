@@ -21,7 +21,7 @@ function Main($mainargs)
     }
     else
     {
-        Set-Alias zip p7zip
+        Set-Alias zip 7z
     }
 
 
@@ -70,7 +70,7 @@ function Main($mainargs)
 
     [string] $username = "loadadmin"
 
-    Log ("Generating password.")
+    Log ("Generating vm password.")
     [string] $password = Generate-AlphanumericPassword 24
 
     Prepare-Beat $payloadFolder "metricbeat" $env:MetricbeatYml
@@ -122,7 +122,7 @@ function Main($mainargs)
     Log ("Deleting resource group: '" + $resourceGroupName + "'")
     try
     {
-        Log-TCStat "LoadTestRemoveResourceGroup" { Remove-AzResourceGroup $resourceGroupName -Force }
+        Log-TCTime "LoadTestRemoveResourceGroup" { Remove-AzResourceGroup $resourceGroupName -Force }
     }
     catch
     {
@@ -135,9 +135,10 @@ function Main($mainargs)
 function Load-Dependencies()
 {
     [string] $nugetpkg = "https://www.nuget.org/api/v2/package/Newtonsoft.Json/12.0.1"
-    [string] $zipfile = Join-Path $env:temp "json.zip"
-    [string] $dllfolder = Join-Path $env:temp "jsondll"
-    [string] $dllfile = Join-Path $env:temp "jsondll" "lib" "netstandard2.0" "Newtonsoft.Json.dll"
+    [string] $tmpfolder = [IO.Path]::GetTempPath()
+    [string] $zipfile = Join-Path $tmpfolder "json.zip"
+    [string] $dllfolder = Join-Path $tmpfolder "jsondll"
+    [string] $dllfile = Join-Path $tmpfolder "jsondll" "lib" "netstandard2.0" "Newtonsoft.Json.dll"
 
     if (Test-Path $dllfile)
     {
@@ -167,7 +168,7 @@ function Load-Dependencies()
     }
 
     Log ("Loading assembly: '" + $dllfile + "'")
-    Import-Module $dllfile | Out-Null
+    [Reflection.Assembly]::LoadFile($dllfile) | Out-Null
 }
 
 function Login([string] $subscriptionName)
@@ -187,7 +188,6 @@ function Login([string] $subscriptionName)
     else
     {
         Connect-AzAccount -Subscription $subscriptionName | Out-Null
-        #Select-AzContext ($subscriptionName + " (" + $subscriptionId + ") - " + $emailAddress
     }
 }
 
@@ -553,7 +553,7 @@ function Log([string] $message, $color)
     [string] $logfile = Join-Path $logfolder "create.log"
 
     [string] $annotatedMessage = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + ": " + $message
-    $annotatedMessage | ac $logfile
+    $annotatedMessage | Add-Content $logfile
 
     if ($color)
     {
