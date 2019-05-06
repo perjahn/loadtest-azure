@@ -27,7 +27,7 @@ class ArtilleryResult
         };
 
         JArray intermediates = document.intermediate;
-        result.Latencies = new JArray(intermediates.SelectMany(l => l["latencies"]));
+        result.Latencies = new JArray(intermediates.SelectMany(l => l["latencies"]).Where(l => l is JArray));
 
         result.EarliestStartTime = GetEarliestStartTime(result.Latencies);
         result.LastEndTime = GetLastEndTime(result.Latencies);
