@@ -119,14 +119,17 @@ function Main($mainargs)
         Log ("Couldn't download result: " + $_.Exception.ToString()) Yellow
     }
 
-    Log ("Deleting resource group: '" + $resourceGroupName + "'")
-    try
+    if (!$env:DontDelete)
     {
-        Log-TCTime "LoadTestRemoveResourceGroup" { Remove-AzResourceGroup $resourceGroupName -Force }
-    }
-    catch
-    {
-        Log ("Couldn't delete resource group: " + $_.Exception.ToString()) Yellow
+        Log ("Deleting resource group: '" + $resourceGroupName + "'")
+        try
+        {
+            Log-TCTime "LoadTestRemoveResourceGroup" { Remove-AzResourceGroup $resourceGroupName -Force }
+        }
+        catch
+        {
+            Log ("Couldn't delete resource group: " + $_.Exception.ToString()) Yellow
+        }
     }
 
     Log ("Done: " + $watch.Elapsed)
