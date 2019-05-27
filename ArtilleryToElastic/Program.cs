@@ -29,13 +29,14 @@ this makes everything easy to visualize, which is the real purpose of this tool.
 
 -f:          Optional extra fields that will be added to every json document.
              May be specified multiple times to add multiple name/value pairs.
-filename:    Artillery result file (json).
+filename:    Artillery result input file (json).
 serverurl:   Target elasticsearch base url.
 username:    Target elasticsearch username.
 password:    Target elasticsearch password.
 rebasetime:  Start time (HH:mm:ss) that timestamps should be rebased on.
 
-Environment variables, to copy extra documents with an applied Rebased[Timestamp] field. These can be prefixed and/or suffixed.
+Environment variables, to copy extra documents with an applied Rebased[Timestamp] field. To copy multiple
+indices, prefix and/or suffixed the variable names.
 ElasticSourceServerurl:  Elasticsearch base url.
 ElasticSourceUsername:   Elasticsearch username.
 ElasticSourcePassword:   Elasticsearch password.
@@ -181,6 +182,14 @@ ElasticFilterValue:      Filter to reduce number of copied documents, field valu
 
     static bool UnitTest()
     {
+        bool result1 = UnitTest1();
+        bool result2 = UnitTest2();
+
+        return result1 || result2;
+    }
+
+    static bool UnitTest1()
+    {
         long[,] difftestshours = new long[,]
         {
              { 0,  0,  0 },
@@ -224,6 +233,39 @@ ElasticFilterValue:      Filter to reduce number of copied documents, field valu
         }
 
         return true;
+    }
+
+    static bool UnitTest2()
+    {
+        var dic = new Dictionary<int, int>
+        {
+            [11] = 2,
+            [3] = 3
+        };
+
+        var results = new List<int>();
+        for (int i = 0; i < 6; i++)
+        {
+            results.Add(ArtilleryResult.PopSmallestKey(dic));
+        }
+        var compare = new[] { 3, 3, 3, 11, 11, 0 };
+
+        bool error = false;
+
+        for (int i = 0; i < 6; i++)
+        {
+            if (results[i] != compare[i])
+            {
+                error = true;
+                Log($"ERROR: Expected {compare[i]}, was {results[i]}");
+            }
+            else
+            {
+                Log($"OK: Expected {compare[i]}, was {results[i]}");
+            }
+        }
+
+        return error;
     }
 
     static bool TryParseTime(string rebasetime, out long totalseconds)

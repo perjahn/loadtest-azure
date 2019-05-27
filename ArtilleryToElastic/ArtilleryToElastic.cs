@@ -1,8 +1,8 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,24 +12,15 @@ class ArtilleryToElastic
     {
         var allrequests = new List<ElasticBulkDocument>();
 
-        foreach (JArray latency in artilleryResult.Latencies)
+        foreach (var request in artilleryResult.Requests)
         {
-            double secondsSince1970 = double.Parse(latency[0].Value<string>(), CultureInfo.InvariantCulture) / 1000;
-            DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(secondsSince1970);
-
-            DateTime rebasedtime = timestamp.AddMilliseconds(artilleryResult.Diff_ms);
-
-            string id = latency[1].Value<string>();
-            long latency_ns = latency[2].Value<long>();
-            long httpresult = latency[3].Value<long>();
-
-            JObject jobject = new JObject
+            dynamic jobject = new JObject
             {
                 ["LoadtestID"] = artilleryResult.LoadtestID,
-                ["@timestamp"] = timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fff"),
-                ["LatencyNS"] = latency_ns,
-                ["HttpResult"] = httpresult,
-                ["RebasedTimestamp"] = rebasedtime.ToString("yyyy-MM-ddTHH:mm:ss.fff")
+                ["@timestamp"] = request.StartTime.ToString("yyyy-MM-ddTHH:mm:ss.fff"),
+                ["LatencyNS"] = request.Latency,
+                ["HttpResult"] = request.HttpResult,
+                ["RebasedTimestamp"] = request.StartTime.AddMilliseconds(artilleryResult.Diff_ms).ToString("yyyy-MM-ddTHH:mm:ss.fff")
             };
 
             foreach (var field in extraFields)
@@ -39,8 +30,8 @@ class ArtilleryToElastic
 
             var bulkDocument = new ElasticBulkDocument
             {
-                Index = $"artillery-{timestamp:yyyy}.{timestamp:MM}",
-                Id = id,
+                Index = $"artillery-{request.StartTime:yyyy}.{request.StartTime:MM}",
+                Id = GetHashString(jobject.ToString()),
                 Type = "doc",
                 Document = jobject
             };
@@ -51,6 +42,14 @@ class ArtilleryToElastic
         Log($"Request count: {allrequests.Count}");
 
         await Elastic.PutIntoIndex(serverurl, username, password, allrequests.ToArray());
+    }
+
+    static string GetHashString(string value)
+    {
+        using (var crypto = new SHA256Managed())
+        {
+            return string.Concat(crypto.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(b => b.ToString("x2")));
+        }
     }
 
     static void Log(string message)
