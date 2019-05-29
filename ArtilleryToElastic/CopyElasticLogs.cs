@@ -67,7 +67,6 @@ class CopyElasticLogs
                 {
                     Index = GetIndexWithDate(targetIndex, timestamp) ?? sourceDocument._index,
                     Id = sourceDocument._id,
-                    Type = sourceDocument._type,
                     Document = jobject
                 };
 

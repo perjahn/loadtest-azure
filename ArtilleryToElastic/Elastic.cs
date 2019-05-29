@@ -82,7 +82,7 @@ class Elastic
 
         foreach (var jsonrow in jsonrows)
         {
-            string metadata = "{ \"index\": { \"_index\": \"" + jsonrow.Index + "\", \"_type\": \"" + jsonrow.Type + "\", \"_id\": \"" + jsonrow.Id + "\" } }";
+            string metadata = "{ \"index\": { \"_index\": \"" + jsonrow.Index + "\", \"_id\": \"" + jsonrow.Id + "\" } }";
             sb.AppendLine(metadata);
 
             string rowdata = jsonrow.Document.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);

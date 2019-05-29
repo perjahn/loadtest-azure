@@ -32,7 +32,6 @@ class ArtilleryToElastic
             {
                 Index = $"artillery-{request.StartTime:yyyy}.{request.StartTime:MM}",
                 Id = GetHashString(jobject.ToString()),
-                Type = "doc",
                 Document = jobject
             };
 
