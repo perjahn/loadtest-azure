@@ -137,7 +137,7 @@ function Main($mainargs)
 
 function Load-Dependencies()
 {
-    [string] $nugetpkg = "https://www.nuget.org/api/v2/package/Newtonsoft.Json/12.0.1"
+    [string] $nugetpkg = "https://www.nuget.org/api/v2/package/Newtonsoft.Json/12.0.2"
     [string] $tmpfolder = [IO.Path]::GetTempPath()
     [string] $zipfile = Join-Path $tmpfolder "json.zip"
     [string] $dllfolder = Join-Path $tmpfolder "jsondll"
@@ -275,7 +275,7 @@ function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [str
     $storageAccount = $null
     try
     {
-        $storageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $location -Type $type -Kind $storageKind -AccessTier $accessTier
+        $storageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $location -Type $type -Kind $storageKind -AccessTier $accessTier -EnableHttpsTrafficOnly $true
     }
     catch
     {
@@ -321,7 +321,7 @@ function Upload-Payload([string] $payloadFile, [string] $resourceGroupName, [str
 
     if (!(Test-Path $payloadFile))
     {
-        Log ("Missing payload file: '" + $payloadFile + "'")
+        Log ("Missing payload file: '" + $payloadFile + "'") Red
         exit 1
     }
 
