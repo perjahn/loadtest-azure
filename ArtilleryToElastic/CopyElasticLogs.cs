@@ -33,7 +33,7 @@ class CopyElasticLogs
 
         string timestampfieldname = source.TimestampField;
 
-        List<ElasticBulkDocument> newDocuments = new List<ElasticBulkDocument>();
+        var newDocuments = new List<ElasticBulkDocument>();
 
         for (DateTime spanStart = starttime; spanStart < endtime; spanStart = spanStart.AddMinutes(2))
         {
@@ -186,7 +186,7 @@ class CopyElasticLogs
 
     static void Log(string message, ConsoleColor color)
     {
-        ConsoleColor oldColor = Console.ForegroundColor;
+        var oldColor = Console.ForegroundColor;
         try
         {
             Console.ForegroundColor = color;

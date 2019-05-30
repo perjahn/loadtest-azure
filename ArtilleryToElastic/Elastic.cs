@@ -15,11 +15,11 @@ class Elastic
         string elasticFilterField, string elasticFilterValue,
         string timestampfieldname, DateTime starttime, DateTime endtime)
     {
-        using (HttpClient client = new HttpClient())
+        using (var client = new HttpClient())
         {
             client.BaseAddress = new Uri(address);
 
-            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}"));
+            string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -78,7 +78,7 @@ class Elastic
 
     public static async Task PutIntoIndex(string serverurl, string username, string password, ElasticBulkDocument[] jsonrows)
     {
-        StringBuilder sb = new StringBuilder();
+        var sb = new StringBuilder();
 
         foreach (var jsonrow in jsonrows)
         {
@@ -104,7 +104,7 @@ class Elastic
 
         using (var client = new HttpClient())
         {
-            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}"));
+            string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
