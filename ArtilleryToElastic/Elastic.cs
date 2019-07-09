@@ -78,7 +78,7 @@ class Elastic
 
     public static async Task PutIntoIndex(string serverurl, string username, string password, ElasticBulkDocument[] jsonrows)
     {
-        StringBuilder sb = new StringBuilder();
+        var sb = new StringBuilder();
 
         foreach (var jsonrow in jsonrows)
         {
