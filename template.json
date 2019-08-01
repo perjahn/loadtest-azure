@@ -51,7 +51,7 @@
       "type": "string"
     },
     "adminPassword": {
-      "type": "secureString"
+      "type": "securestring"
     },
     "autoShutdownStatus": {
       "type": "string"
@@ -87,7 +87,7 @@
   "variables": {
     "location": "[resourceGroup().location]",
     "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]",
-    "vnetId": "[resourceId(resourceGroup().name,'Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+    "vnetId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
     "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
   },
   "resources": [
@@ -120,8 +120,7 @@
         "networkSecurityGroup": {
           "id": "[variables('nsgId')]"
         }
-      },
-      "tags": {}
+      }
     },
     {
       "name": "[parameters('networkSecurityGroupName')]",
@@ -130,8 +129,7 @@
       "location": "[variables('location')]",
       "properties": {
         "securityRules": "[parameters('networkSecurityGroupRules')]"
-      },
-      "tags": {}
+      }
     },
     {
       "name": "[parameters('virtualNetworkName')]",
@@ -143,8 +141,7 @@
           "addressPrefixes": "[parameters('addressPrefixes')]"
         },
         "subnets": "[parameters('subnets')]"
-      },
-      "tags": {}
+      }
     },
     {
       "name": "[parameters('publicIpAddressName')]",
@@ -156,8 +153,7 @@
       },
       "sku": {
         "name": "[parameters('publicIpAddressSku')]"
-      },
-      "tags": {}
+      }
     },
     {
       "name": "[parameters('virtualMachineName')]",
@@ -199,8 +195,7 @@
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPassword')]"
         }
-      },
-      "tags": {}
+      }
     },
     {
       "name": "[concat('shutdown-computevm-', parameters('virtualMachineName'))]",
@@ -223,8 +218,7 @@
           "notificationLocale": "[parameters('autoShutdownNotificationLocale')]",
           "timeInMinutes": "30"
         }
-      },
-      "tags": {}
+      }
     },
     {
       "name": "microsoft.custom-script-linux-20190109153100",

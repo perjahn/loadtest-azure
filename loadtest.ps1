@@ -14,17 +14,6 @@ function Main($mainargs)
     }
 
 
-    [string] $zipexe = "C:\Program Files\7-Zip\7z.exe"
-    if (Test-Path $zipexe)
-    {
-        Set-Alias zip $zipexe
-    }
-    else
-    {
-        Set-Alias zip 7z
-    }
-
-
     [string] $subscriptionName = $mainargs[0]
     [string] $resourceGroupName = $mainargs[1]
     [string] $storageAccountName = $mainargs[2]
@@ -251,7 +240,7 @@ function Prepare-Payload([string] $payloadFolder, [string] $payloadFile, [string
     cd $payloadFolder
     Log ("Current dir: '" + (pwd).Path + "'")
     Log ("Zipping: . -> '" + $zipfile + "'")
-    zip a -mx9 $zipfile -mhe ("-p" + $zipPassword)
+    7z a -mx9 $zipfile -mhe ("-p" + $zipPassword)
     if (!$? -or (!(Test-Path $zipfile)) -or (dir $zipfile).Length -lt 1)
     {
         cd ..
@@ -506,7 +495,7 @@ function Download-Result([string] $resourceGroupName, [string] $storageAccountNa
     Log ("Downloading '" + $url + "' to '" + $zipfile + "'")
     Get-AzStorageBlobContent -Container $containerName -Blob $blobName -Context $storageContext | Out-Null
 
-    zip x $zipfile ("-p" + $zipPassword)
+    7z x $zipfile ("-p" + $zipPassword)
 }
 
 function Obfuscate-String([string] $text, [string] $textname)
