@@ -78,21 +78,6 @@
     "adminPassword": {
       "value": ""
     },
-    "autoShutdownStatus": {
-      "value": "Enabled"
-    },
-    "autoShutdownTime": {
-      "value": ""
-    },
-    "autoShutdownTimeZone": {
-      "value": "UTC"
-    },
-    "autoShutdownNotificationStatus": {
-      "value": "Disabled"
-    },
-    "autoShutdownNotificationLocale": {
-      "value": "en"
-    },
     "setupScriptUrl": {
       "value": ""
     },

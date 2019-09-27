@@ -87,7 +87,7 @@ function Main($mainargs)
     [DateTime] $now = Get-Date
 
     $sasurls = Upload-Payload $payloadFile $resourceGroupName $location $storageAccountName $now
-    Update-ParametersFile $parametersFile $username $password $ipaddress $zipPassword $now.AddHours(1) $sasurls
+    Update-ParametersFile $parametersFile $username $password $ipaddress $zipPassword $sasurls
 
     Log ("Deploying: '" + $resourceGroupName + "' '" + $templateFile + "' '" + $parametersFile + "'")
     try
@@ -374,14 +374,13 @@ function Upload-Blob($storageContext, [string] $containerName, [string] $filenam
     return $sasurl
 }
 
-function Update-ParametersFile([string] $parametersFile, [string] $username, [string] $password, [string] $ipaddress, [string] $zipPassword, [DateTime] $autoShutdownTime, $sasurls)
+function Update-ParametersFile([string] $parametersFile, [string] $username, [string] $password, [string] $ipaddress, [string] $zipPassword, $sasurls)
 {
     $replaceValues = @{}
     $replaceValues["adminUsername"] = $username
     $replaceValues["adminPassword"] = $password
     $replaceValues["sourceAddressPrefix"] = $ipaddress
     $replaceValues["zipPassword"] = $zipPassword
-    $replaceValues["autoShutdownTime"] = $autoShutdownTime.ToString("HH:mm")
 
     $sasurls.Keys | % {
         $replaceValues[$_] = $sasurls[$_]
