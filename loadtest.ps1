@@ -70,6 +70,7 @@ function Main($mainargs)
 
     Prepare-Payload $payloadFolder $payloadFile $zipPassword $artilleryYml
 
+    'Stop-AzVM -ResourceGroupName "' + $resourceGroupName + '" -Name "vm-loadazure" -Force' | Set-Content "ShutdownVM.ps1"
 
     Login $subscriptionName
 
