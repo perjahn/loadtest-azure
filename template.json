@@ -53,21 +53,6 @@
     "adminPassword": {
       "type": "securestring"
     },
-    "autoShutdownStatus": {
-      "type": "string"
-    },
-    "autoShutdownTime": {
-      "type": "string"
-    },
-    "autoShutdownTimeZone": {
-      "type": "string"
-    },
-    "autoShutdownNotificationStatus": {
-      "type": "string"
-    },
-    "autoShutdownNotificationLocale": {
-      "type": "string"
-    },
     "setupScriptUrl": {
       "type": "string"
     },
@@ -194,29 +179,6 @@
           "computerName": "[parameters('virtualMachineName')]",
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPassword')]"
-        }
-      }
-    },
-    {
-      "name": "[concat('shutdown-computevm-', parameters('virtualMachineName'))]",
-      "type": "Microsoft.DevTestLab/schedules",
-      "apiVersion": "2017-04-26-preview",
-      "location": "[variables('location')]",
-      "dependsOn": [
-        "[concat('Microsoft.Compute/virtualMachines/', parameters('virtualMachineName'))]"
-      ],
-      "properties": {
-        "status": "[parameters('autoShutdownStatus')]",
-        "taskType": "ComputeVmShutdownTask",
-        "dailyRecurrence": {
-          "time": "[parameters('autoShutdownTime')]"
-        },
-        "timeZoneId": "[parameters('autoShutdownTimeZone')]",
-        "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', parameters('virtualMachineName'))]",
-        "notificationSettings": {
-          "status": "[parameters('autoShutdownNotificationStatus')]",
-          "notificationLocale": "[parameters('autoShutdownNotificationLocale')]",
-          "timeInMinutes": "30"
         }
       }
     },
